@@ -91,22 +91,6 @@ func (l *logger) cloneEnabled() map[Level]bool {
 	return enabled
 }
 
-func (l *logger) cloneAppenders() map[Level]Appender {
-	appenders := make(map[Level]Appender)
-	for level, appender := range l.appenders {
-		appenders[level] = appender
-	}
-	return appenders
-}
-
-func (l *logger) cloneFormats() map[Level]string {
-	formats := make(map[Level]string)
-	for level, format := range l.formats {
-		formats[level] = format
-	}
-	return formats
-}
-
 func (l *logger) New(name string) Logger {
 	l.l.Lock()
 	lg := &logger{
@@ -114,8 +98,8 @@ func (l *logger) New(name string) Logger {
 		level:     l.level,
 		name:      name,
 		enabled:   l.cloneEnabled(),
-		appenders: l.cloneAppenders(),
-		formats:   l.cloneFormats(),
+		appenders: make(map[Level]Appender),
+		formats:   make(map[Level]string),
 		parent:    l,
 	}
 	l.children = append(l.children, lg)
