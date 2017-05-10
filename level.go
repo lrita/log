@@ -5,8 +5,8 @@ type Level int8
 const (
 	FATAL Level = iota
 	ERROR
-	INFO
 	WARN
+	INFO
 	DEBUG
 	TRACE
 )
@@ -14,8 +14,8 @@ const (
 var StringToLevels = map[string]Level{
 	"TRACE": TRACE,
 	"DEBUG": DEBUG,
-	"WARN":  WARN,
 	"INFO":  INFO,
+	"WARN":  WARN,
 	"ERROR": ERROR,
 	"FATAL": FATAL,
 }
@@ -23,8 +23,8 @@ var StringToLevels = map[string]Level{
 var LevelsToString = map[Level]string{
 	TRACE: "TRACE",
 	DEBUG: "DEBUG",
-	WARN:  "WARN",
 	INFO:  "INFO",
+	WARN:  "WARN",
 	ERROR: "ERROR",
 	FATAL: "FATAL",
 }
