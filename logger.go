@@ -60,10 +60,10 @@ type Logger interface {
 
 type logger struct {
 	l         sync.RWMutex
+	detach    bool
 	calldepth int
 	level     Level
 	name      string
-	enabled   map[Level]bool
 	appenders map[Level]Appender
 	formats   map[Level]string
 	children  []Logger
@@ -71,10 +71,10 @@ type logger struct {
 }
 
 var log = &logger{
+	detach:    true,
 	calldepth: 1,
 	level:     DEBUG,
 	name:      "",
-	enabled:   make(map[Level]bool),
 	appenders: make(map[Level]Appender),
 	formats:   make(map[Level]string),
 }
@@ -85,21 +85,12 @@ func init() {
 	log.SetAppender(NewConsoleAppender())
 }
 
-func (l *logger) cloneEnabled() map[Level]bool {
-	enabled := make(map[Level]bool)
-	for level, v := range l.enabled {
-		enabled[level] = v
-	}
-	return enabled
-}
-
 func (l *logger) New(name string) Logger {
 	l.l.Lock()
 	lg := &logger{
 		calldepth: 0,
 		level:     l.level,
 		name:      name,
-		enabled:   l.cloneEnabled(),
 		appenders: make(map[Level]Appender),
 		formats:   make(map[Level]string),
 		parent:    l,
@@ -112,8 +103,12 @@ func (l *logger) New(name string) Logger {
 func (l *logger) Level() Level {
 	l.l.RLock()
 	lvl := l.level
+	detach := l.detach
 	l.l.RUnlock()
-	return lvl
+	if detach {
+		return lvl
+	}
+	return l.parent.Level()
 }
 
 func (l *logger) SetCallDepth(d int) {
@@ -123,22 +118,13 @@ func (l *logger) SetCallDepth(d int) {
 }
 
 func (l *logger) IsDebugEnabled() bool {
-	l.l.RLock()
-	v := l.level >= DEBUG
-	l.l.RUnlock()
-	return v
+	return l.Level() >= DEBUG
 }
 
 func (l *logger) SetLevel(level Level) {
 	l.l.Lock()
+	l.detach = true
 	l.level = level
-	for k := range LevelsToString {
-		if k <= level {
-			l.enabled[k] = true
-		} else {
-			l.enabled[k] = false
-		}
-	}
 	l.l.Unlock()
 }
 
@@ -237,9 +223,15 @@ func (l *logger) Tracef(fmt string, v ...interface{}) {
 
 func (l *logger) Log(level Level, f string, v ...interface{}) {
 	l.l.RLock()
-	ok := l.enabled[level]
+	detach := l.detach
+	ok := level <= l.level
 	calldepth := l.calldepth
 	l.l.RUnlock()
+
+	if !detach {
+		ok = level <= l.parent.Level()
+	}
+
 	if !ok {
 		return
 	}
