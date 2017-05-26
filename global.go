@@ -20,6 +20,16 @@ func SetFormat(fmt string, levels ...Level) {
 	log.SetFormat(fmt, levels...)
 }
 
+// SetCallDepth set callee stack depth
+func SetCallDepth(d int) {
+	log.SetCallDepth(d + 1)
+}
+
+// IsDebugEnabled indicates whether debug level is enabled
+func IsDebugEnabled() bool {
+	return log.IsDebugEnabled()
+}
+
 func Fatal(v ...interface{}) {
 	log.Fatal(v...)
 }

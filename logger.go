@@ -40,6 +40,8 @@ type Logger interface {
 	SetFormat(fmt string, levels ...Level)
 	// SetCallDepth set callee stack depth
 	SetCallDepth(d int)
+	// IsDebugEnabled indicates whether debug level is enabled
+	IsDebugEnabled() bool
 
 	Fatal(v ...interface{})
 	Error(v ...interface{})
@@ -118,6 +120,13 @@ func (l *logger) SetCallDepth(d int) {
 	l.l.Lock()
 	l.calldepth = d
 	l.l.Unlock()
+}
+
+func (l *logger) IsDebugEnabled() bool {
+	l.l.RLock()
+	v := l.level >= DEBUG
+	l.l.RUnlock()
+	return v
 }
 
 func (l *logger) SetLevel(level Level) {
