@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bufio"
 	"io"
 	"os"
 	"path"
@@ -37,6 +38,7 @@ type RotateAppender struct {
 	rt       time.Time
 	filename string
 	rtfn     func(time.Time) (time.Time, string)
+	w        io.Writer
 	file     *os.File
 }
 
@@ -53,6 +55,10 @@ func daily() time.Time {
 }
 
 func NewHourlyRotateAppender(filename string) (*RotateAppender, error) {
+	return NewHourlyRotateBufAppender(filename, 0)
+}
+
+func NewHourlyRotateBufAppender(filename string, bufsize int) (*RotateAppender, error) {
 	a := &RotateAppender{
 		filename: path.Clean(filename),
 		rt:       hourly(),
@@ -62,10 +68,14 @@ func NewHourlyRotateAppender(filename string) (*RotateAppender, error) {
 		return hourly(), t.Format(HourlySuffix)
 	}
 
-	return a.open()
+	return a.open(bufsize)
 }
 
 func NewDailyRotateAppender(filename string) (*RotateAppender, error) {
+	return NewDailyRotateBufAppender(filename, 0)
+}
+
+func NewDailyRotateBufAppender(filename string, bufsize int) (*RotateAppender, error) {
 	a := &RotateAppender{
 		filename: path.Clean(filename),
 		rt:       daily(),
@@ -75,25 +85,59 @@ func NewDailyRotateAppender(filename string) (*RotateAppender, error) {
 		return daily(), t.Format(DailySuffix)
 	}
 
-	return a.open()
+	return a.open(bufsize)
 }
 
-func (a *RotateAppender) open() (*RotateAppender, error) {
+func (a *RotateAppender) open(bufsize int) (*RotateAppender, error) {
 	err := os.MkdirAll(path.Dir(a.filename), 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, err
 	}
 	a.file, err = os.OpenFile(a.filename,
 		os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if bufsize > 0 {
+		a.w = bufio.NewWriterSize(a.file, bufsize)
+	} else {
+		a.w = a.file
+	}
 	return a, err
 }
 
 func (a *RotateAppender) Close() error {
 	a.mu.Lock()
-	e := a.file.Close()
-	a.file = nil
+	e := a.close()
 	a.mu.Unlock()
 	return e
+}
+
+func (a *RotateAppender) close() error {
+	var e1, e2 error
+	if bw, ok := a.w.(*bufio.Writer); ok {
+		if e1 = bw.Flush(); e1 != nil {
+			println("appender close bufio flush error: ", e1)
+		}
+	}
+
+	if e2 = a.file.Close(); e2 != nil {
+		println("appender close filename: ", a.filename, "error: ", e2)
+	} else {
+		a.file = nil
+	}
+
+	if e1 != nil {
+		return e1
+	} else if e2 != nil {
+		return e2
+	}
+	return nil
+}
+
+func (a *RotateAppender) reset(file *os.File) {
+	if bw, ok := a.w.(*bufio.Writer); ok {
+		bw.Reset(file)
+	} else {
+		a.w = file
+	}
 }
 
 func (a *RotateAppender) Output(_ Level, t time.Time, data []byte) {
@@ -102,7 +146,7 @@ func (a *RotateAppender) Output(_ Level, t time.Time, data []byte) {
 		var suffix string
 		a.rt, suffix = a.rtfn(a.rt)
 		filename := a.filename + suffix
-		err := a.file.Close()
+		err := a.close()
 		if err != nil {
 			println("appender close ", a.filename, "error: ", err)
 		}
@@ -114,11 +158,12 @@ func (a *RotateAppender) Output(_ Level, t time.Time, data []byte) {
 		if err != nil {
 			println("appender open ", a.filename, "error: ", err)
 		}
+		a.reset(a.file)
 	}
 	if a.file == nil {
 		a.mu.Unlock()
 		return
 	}
-	a.file.Write(data)
+	a.w.Write(data)
 	a.mu.Unlock()
 }
