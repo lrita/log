@@ -114,12 +114,12 @@ func (a *RotateAppender) close() error {
 	var e1, e2 error
 	if bw, ok := a.w.(*bufio.Writer); ok {
 		if e1 = bw.Flush(); e1 != nil {
-			println("appender close bufio flush error: ", e1)
+			println("appender close bufio flush error: ", e1.Error())
 		}
 	}
 
 	if e2 = a.file.Close(); e2 != nil {
-		println("appender close filename: ", a.filename, "error: ", e2)
+		println("appender close filename: ", a.filename, "error: ", e2.Error())
 	} else {
 		a.file = nil
 	}
@@ -148,15 +148,15 @@ func (a *RotateAppender) Output(_ Level, t time.Time, data []byte) {
 		filename := a.filename + suffix
 		err := a.close()
 		if err != nil {
-			println("appender close ", a.filename, "error: ", err)
+			println("appender close ", a.filename, "error: ", err.Error())
 		}
 		if err = os.Rename(a.filename, filename); err != nil {
-			println("appender rename ", filename, "error: ", err)
+			println("appender rename ", filename, "error: ", err.Error())
 		}
 
 		a.file, err = os.OpenFile(a.filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			println("appender open ", a.filename, "error: ", err)
+			println("appender open ", a.filename, "error: ", err.Error())
 		}
 		a.reset(a.file)
 	}
