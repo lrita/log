@@ -3,7 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -288,7 +288,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			buf = append(buf, path.Base(caller)...)
+			buf = append(buf, filepath.Base(caller)...)
 		case 'L':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(calldepth + 2)

@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -60,7 +60,7 @@ func NewHourlyRotateAppender(filename string) (*RotateAppender, error) {
 
 func NewHourlyRotateBufAppender(filename string, bufsize int) (*RotateAppender, error) {
 	a := &RotateAppender{
-		filename: path.Clean(filename),
+		filename: filepath.Clean(filename),
 		rt:       hourly(),
 	}
 
@@ -77,7 +77,7 @@ func NewDailyRotateAppender(filename string) (*RotateAppender, error) {
 
 func NewDailyRotateBufAppender(filename string, bufsize int) (*RotateAppender, error) {
 	a := &RotateAppender{
-		filename: path.Clean(filename),
+		filename: filepath.Clean(filename),
 		rt:       daily(),
 	}
 
@@ -89,7 +89,7 @@ func NewDailyRotateBufAppender(filename string, bufsize int) (*RotateAppender, e
 }
 
 func (a *RotateAppender) open(bufsize int) (*RotateAppender, error) {
-	err := os.MkdirAll(path.Dir(a.filename), 0755)
+	err := os.MkdirAll(filepath.Dir(a.filename), 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, err
 	}
