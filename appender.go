@@ -43,10 +43,7 @@ type RotateAppender struct {
 }
 
 func hourly() time.Time {
-	n := time.Now()
-	y, m, d := n.Date()
-	h, _, _ := n.Clock()
-	return time.Date(y, m, d, h+1, 0, 0, 0, time.Local)
+	return time.Now().Add(time.Hour).Truncate(time.Hour)
 }
 
 func daily() time.Time {
@@ -65,7 +62,7 @@ func NewHourlyRotateBufAppender(filename string, bufsize int) (*RotateAppender, 
 	}
 
 	a.rtfn = func(t time.Time) (time.Time, string) {
-		return hourly(), t.Format(HourlySuffix)
+		return hourly(), t.Add(-time.Hour).Format(HourlySuffix)
 	}
 
 	return a.open(bufsize)
@@ -82,7 +79,7 @@ func NewDailyRotateBufAppender(filename string, bufsize int) (*RotateAppender, e
 	}
 
 	a.rtfn = func(t time.Time) (time.Time, string) {
-		return daily(), t.Format(DailySuffix)
+		return daily(), t.Add(-24 * time.Hour).Format(DailySuffix)
 	}
 
 	return a.open(bufsize)
