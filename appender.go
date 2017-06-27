@@ -115,6 +115,10 @@ func (a *RotateAppender) close() error {
 		}
 	}
 
+	// ignore error
+	a.file.Sync()
+	fadvise(a.file)
+
 	if e2 = a.file.Close(); e2 != nil {
 		println("appender close filename: ", a.filename, "error: ", e2.Error())
 	} else {
