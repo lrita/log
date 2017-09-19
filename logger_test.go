@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bytes"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -101,6 +102,50 @@ func TestLoggerSetLevel(t *testing.T) {
 	Info(1, " 2", "3")
 	Error(1, " 2", "3")
 	Fatal(1, " 2", "3")
+}
+
+type ha struct {
+	count int
+	data  map[Level][]byte
+}
+
+func (c *ha) Output(level Level, t time.Time, data []byte) {
+	c.count++
+	if d, ok := c.data[level]; ok {
+		if !bytes.Equal(d, data) {
+			panic("format is not equal")
+		} else {
+			println("xxx")
+		}
+	} else {
+		c.data[level] = data
+	}
+}
+
+func TestLoggerInherit(t *testing.T) {
+	var (
+		ha0 = &ha{data: make(map[Level][]byte)}
+		ha1 = &ha{data: make(map[Level][]byte)}
+	)
+
+	ExitOnFatal = false
+	SetAppender(ha0)
+	SetFormat("%F %a %l %m")
+	SetLevel(TRACE)
+	log0 := New("log0")
+	log1 := New("log1")
+	log2 := log0.New("log2")
+	log0.SetAppender(ha1, DEBUG, ERROR)
+	log0.SetFormat("%a %l %m", DEBUG, ERROR)
+
+	for _, l := range []Logger{log, log0, log1, log2} {
+		l.Trace("trace message")
+		l.Debug("debug message")
+		l.Info("info message")
+		l.Warn("warn message")
+		l.Error("error message")
+		l.Fatal("fatal message")
+	}
 }
 
 type null struct{}

@@ -12,6 +12,8 @@ import (
 var ExitOnFatal = true
 
 type Logger interface {
+	// New return a new log handler which inherit its appender and formater
+	New(name string) Logger
 	// Level return the logger current log-level
 	Level() Level
 	// SetLevel set the logger current log-level
