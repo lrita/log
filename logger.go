@@ -302,23 +302,23 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		case '%':
 			buf = append(buf, '%')
 		case 'n':
-			buf = append(buf, 'n')
+			buf = append(buf, '\n')
 		case 'F':
-			buf = append(buf, tm.Format("2006-01-02")...)
+			buf = tm.AppendFormat(buf, "2006-01-02")
 		case 'D':
-			buf = append(buf, tm.Format("01/02/06")...)
+			buf = tm.AppendFormat(buf, "01/02/06")
 		case 'd':
-			buf = append(buf, tm.Format(time.RFC3339)...)
+			buf = tm.AppendFormat(buf, time.RFC3339)
 		case 'T':
-			buf = append(buf, tm.Format("15:04:05")...)
+			buf = tm.AppendFormat(buf, "15:04:05")
 		case 'a':
-			buf = append(buf, tm.Format("Mon")...)
+			buf = tm.AppendFormat(buf, "Mon")
 		case 'A':
-			buf = append(buf, tm.Format("Monday")...)
+			buf = tm.AppendFormat(buf, "Monday")
 		case 'b':
-			buf = append(buf, tm.Format("Jan")...)
+			buf = tm.AppendFormat(buf, "Jan")
 		case 'B':
-			buf = append(buf, tm.Format("January")...)
+			buf = tm.AppendFormat(buf, "January")
 		}
 	}
 
