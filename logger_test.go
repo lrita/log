@@ -114,8 +114,6 @@ func (c *ha) Output(level Level, t time.Time, data []byte) {
 	if d, ok := c.data[level]; ok {
 		if !bytes.Equal(d, data) {
 			panic("format is not equal")
-		} else {
-			println("xxx")
 		}
 	} else {
 		c.data[level] = data
@@ -163,4 +161,44 @@ func BenchmarkLogger(b *testing.B) {
 			Infof("BenchmarkLogger running %s %d", "go go go", 12345678)
 		}
 	})
+}
+
+var (
+	bench0, bench1, bench2, bench3, bench4 Logger
+)
+
+func init() {
+	bench0 = New("bench1")
+	bench1 = bench0.New("bench1")
+	bench2 = bench1.New("bench2")
+	bench3 = bench1.New("bench3")
+	bench4 = bench1.New("bench4")
+	bench0.SetAppender(&null{})
+	bench0.SetLevel(TRACE)
+}
+
+func benmarkLoggerWithMultiInherit(b *testing.B, p int) {
+	b.SetParallelism(p)
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			bench0.Info("benmarkLoggerWithMultiInherit")
+			bench1.Info("benmarkLoggerWithMultiInherit")
+			bench2.Info("benmarkLoggerWithMultiInherit")
+			bench3.Info("benmarkLoggerWithMultiInherit")
+			bench4.Info("benmarkLoggerWithMultiInherit")
+		}
+	})
+}
+
+func BenchmarkLoggerWithMultiInherit1(b *testing.B) {
+	benmarkLoggerWithMultiInherit(b, 1)
+}
+
+func BenchmarkLoggerWithMultiInherit10(b *testing.B) {
+	benmarkLoggerWithMultiInherit(b, 10)
+}
+
+func BenchmarkLoggerWithMultiInherit20(b *testing.B) {
+	benmarkLoggerWithMultiInherit(b, 20)
 }
