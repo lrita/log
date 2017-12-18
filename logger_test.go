@@ -126,6 +126,7 @@ func TestLoggerInherit(t *testing.T) {
 		ha1 = &ha{data: make(map[Level][]byte)}
 	)
 
+	defer SetAppender(NewConsoleAppender())
 	ExitOnFatal = false
 	SetAppender(ha0)
 	SetFormat("%F %a %l %m")
