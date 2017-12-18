@@ -47,61 +47,58 @@ func TestGlobalLogger(t *testing.T) {
 	lg.Fatal(1, " 2", "3")
 }
 
+type la struct {
+	m map[Level]int
+}
+
+func (a *la) Output(level Level, t time.Time, data []byte) {
+	a.m[level]++
+}
+
+func (a *la) check(t *testing.T, level Level, vv int) {
+	for l, v := range a.m {
+		if l <= level {
+			if v != vv {
+				t.Errorf("%v: expect %d, got %d", LevelsToString[l], vv, v)
+			}
+		} else {
+			if v >= vv {
+				t.Errorf("%v: expect lt %d, got %d", LevelsToString[l], vv, v)
+			}
+		}
+	}
+}
+
 func TestLoggerSetLevel(t *testing.T) {
+	a := &la{m: make(map[Level]int, len(StringToLevels))}
+	for l := range LevelsToString {
+		a.m[l] = 0
+	}
+	tt := []struct {
+		l Level
+		n int
+	}{
+		{l: TRACE, n: 1},
+		{l: DEBUG, n: 2},
+		{l: INFO, n: 3},
+		{l: WARN, n: 4},
+		{l: ERROR, n: 5},
+		{l: FATAL, n: 6},
+	}
+
+	log.SetAppender(a)
 	ExitOnFatal = false
-	println("=== Set TRACE ===")
-	SetLevel(TRACE)
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
 
-	println("=== Set DEBUG ===")
-	SetLevel(DEBUG)
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
-
-	println("=== Set WARN ===")
-	SetLevel(WARN)
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
-
-	println("=== Set INFO ===")
-	SetLevel(INFO)
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
-
-	println("=== Set ERROR ===")
-	SetLevel(ERROR)
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
-
-	println("=== Set FATAL ===")
-	SetLevel(FATAL)
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
+	for _, v := range tt {
+		SetLevel(v.l)
+		Trace(1, " 2", "3")
+		Debug(1, " 2", "3")
+		Warn(1, " 2", "3")
+		Info(1, " 2", "3")
+		Error(1, " 2", "3")
+		Fatal(1, " 2", "3")
+		a.check(t, v.l, v.n)
+	}
 }
 
 type ha struct {

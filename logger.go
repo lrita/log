@@ -11,6 +11,7 @@ import (
 	"unsafe"
 )
 
+// ExitOnFatal decides whether or not to exit when fatal log printing.
 var ExitOnFatal = true
 
 type Logger interface {
