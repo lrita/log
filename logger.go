@@ -101,16 +101,24 @@ func (m *meta) Level() Level {
 	return m.parent.Level()
 }
 
-var log = &logger{
-	name: "",
-	meta: unsafe.Pointer(&meta{
-		detach:    true,
-		level:     DEBUG,
-		calldepth: 1,
-		appenders: make(map[Level]Appender),
-		formats:   make(map[Level]string),
-	}),
-}
+var (
+	log = &logger{
+		name: "",
+		meta: unsafe.Pointer(&meta{
+			detach:    true,
+			level:     DEBUG,
+			calldepth: 1,
+			appenders: make(map[Level]Appender),
+			formats:   make(map[Level]string),
+		}),
+	}
+	pool = sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, 256)
+			return &b
+		},
+	}
+)
 
 func init() {
 	log.SetLevel(DEBUG)
@@ -285,11 +293,13 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		ok     bool
 		line   int
 		caller string
-		buf    = make([]byte, 0, 256)
+		b      = pool.Get().(*[]byte)
 		format = m.format(level)
 		tm     = time.Now()
 		n      = len(format)
 	)
+
+	*b = (*b)[:0]
 
 	for i := 0; i < n; i++ {
 		lasti := i
@@ -297,7 +307,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 			i++
 		}
 		if i > lasti {
-			buf = append(buf, format[lasti:i]...)
+			*b = append(*b, format[lasti:i]...)
 		}
 		if i >= n { // done processing format string
 			break
@@ -308,12 +318,12 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		switch format[i] {
 		case 'm':
 			if f != "" {
-				buf = append(buf, fmt.Sprintf(f, v...)...)
+				*b = append(*b, fmt.Sprintf(f, v...)...)
 			} else {
-				buf = append(buf, fmt.Sprint(v...)...)
+				*b = append(*b, fmt.Sprint(v...)...)
 			}
 		case 'l':
-			buf = append(buf, LevelsToString[level]...)
+			*b = append(*b, LevelsToString[level]...)
 		case 'C':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(m.calldepth + 2)
@@ -321,7 +331,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			buf = append(buf, caller...)
+			*b = append(*b, caller...)
 		case 'c':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(m.calldepth + 2)
@@ -329,7 +339,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			buf = append(buf, filepath.Base(caller)...)
+			*b = append(*b, filepath.Base(caller)...)
 		case 'L':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(m.calldepth + 2)
@@ -337,35 +347,36 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			itoa(&buf, line, -1)
+			itoa(b, line, -1)
 		case '%':
-			buf = append(buf, '%')
+			*b = append(*b, '%')
 		case 'n':
-			buf = append(buf, '\n')
+			*b = append(*b, '\n')
 		case 'F':
-			buf = tm.AppendFormat(buf, "2006-01-02")
+			*b = tm.AppendFormat(*b, "2006-01-02")
 		case 'D':
-			buf = tm.AppendFormat(buf, "01/02/06")
+			*b = tm.AppendFormat(*b, "01/02/06")
 		case 'd':
-			buf = tm.AppendFormat(buf, time.RFC3339)
+			*b = tm.AppendFormat(*b, time.RFC3339)
 		case 'T':
-			buf = tm.AppendFormat(buf, "15:04:05")
+			*b = tm.AppendFormat(*b, "15:04:05")
 		case 'a':
-			buf = tm.AppendFormat(buf, "Mon")
+			*b = tm.AppendFormat(*b, "Mon")
 		case 'A':
-			buf = tm.AppendFormat(buf, "Monday")
+			*b = tm.AppendFormat(*b, "Monday")
 		case 'b':
-			buf = tm.AppendFormat(buf, "Jan")
+			*b = tm.AppendFormat(*b, "Jan")
 		case 'B':
-			buf = tm.AppendFormat(buf, "January")
+			*b = tm.AppendFormat(*b, "January")
 		}
 	}
 
-	if len(buf) == 0 || buf[len(buf)-1] != '\n' {
-		buf = append(buf, '\n')
+	if len(*b) == 0 || (*b)[len(*b)-1] != '\n' {
+		*b = append(*b, '\n')
 	}
 
-	app.Output(level, tm, buf)
+	app.Output(level, tm, *b)
+	pool.Put(b)
 
 	if level == FATAL && ExitOnFatal {
 		os.Exit(-1)

@@ -15,6 +15,10 @@ var (
 )
 
 type Appender interface {
+	// Output will be invoked by Logger. The Logger input a formatted data
+	// to the appender using Output. And the data is only valid during the
+	// Output invoking, if you want do something async with data, you need
+	// copy it yourself.
 	Output(level Level, t time.Time, data []byte)
 }
 
