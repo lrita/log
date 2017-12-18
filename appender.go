@@ -172,3 +172,12 @@ func (a *RotateAppender) Output(_ Level, t time.Time, data []byte) {
 	a.w.Write(data)
 	a.mu.Unlock()
 }
+
+func (a *RotateAppender) Flush() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if bw, ok := a.w.(*bufio.Writer); ok {
+		return bw.Flush()
+	}
+	return nil
+}
