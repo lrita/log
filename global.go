@@ -20,6 +20,11 @@ func SetFormat(fmt string, levels ...Level) {
 	log.SetFormat(fmt, levels...)
 }
 
+// SetRatelimit set log rate limit for global logger
+func SetRatelimit(limit int64, levels ...Level) {
+	log.SetRatelimit(limit, levels...)
+}
+
 // SetCallDepth set callee stack depth
 func SetCallDepth(d int) {
 	log.SetCallDepth(d + 1)

@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
+
+	"github.com/lrita/ratelimit"
 )
 
 // ExitOnFatal decides whether or not to exit when fatal log printing.
@@ -24,6 +26,8 @@ type Logger interface {
 	// SetAppender the given log-level to use the special appender.
 	// If non-given log-level, all log-level use it
 	SetAppender(appender Appender, levels ...Level)
+	// SetRatelimit the give limit(QPS) rate to the logger.
+	SetRatelimit(limit int64, levels ...Level)
 	// SetFormat the given log-level to use the special format.
 	// If non-given log-level, all log-level use it
 	// fmt is a pattern-string, default is "%F %T [%l] %m"
@@ -74,6 +78,7 @@ const (
 	detachlvl = 1 << iota
 	detachapp
 	detachfmt
+	detachlmt
 )
 
 type meta struct {
@@ -82,6 +87,7 @@ type meta struct {
 	calldepth int
 	appenders map[Level]Appender
 	formats   map[Level]string
+	limits    map[Level]*ratelimit.Bucket
 }
 
 func (m *meta) clone() *meta {
@@ -91,12 +97,16 @@ func (m *meta) clone() *meta {
 		calldepth: m.calldepth,
 		appenders: make(map[Level]Appender),
 		formats:   make(map[Level]string),
+		limits:    make(map[Level]*ratelimit.Bucket),
 	}
 	for level, app := range m.appenders {
 		mm.appenders[level] = app
 	}
 	for level, fmt := range m.formats {
 		mm.formats[level] = fmt
+	}
+	for level, l := range m.limits {
+		mm.limits[level] = l
 	}
 	return mm
 }
@@ -241,6 +251,40 @@ func (l *logger) SetFormat(fmt string, levels ...Level) {
 	l.setFormatInternal(true, fmt, levels...)
 }
 
+func (l *logger) setRatelimitInternal(detach bool, bucket *ratelimit.Bucket, levels ...Level) {
+	l.l.Lock()
+	defer l.l.Unlock()
+	m := *(*meta)(atomic.LoadPointer(&l.meta))
+	if detach {
+		m.detach |= detachlmt
+	} else if m.detach&detachlmt != 0 {
+		return
+	}
+	m.limits = make(map[Level]*ratelimit.Bucket, len(LevelsToString))
+	if len(levels) == 0 {
+		for level := range LevelsToString {
+			m.limits[level] = bucket
+		}
+	} else {
+		m0 := (*meta)(atomic.LoadPointer(&l.meta))
+		for l, b := range m0.limits {
+			m.limits[l] = b
+		}
+		for _, level := range levels {
+			m.limits[level] = bucket
+		}
+	}
+	atomic.StorePointer(&l.meta, unsafe.Pointer(&m))
+	for _, child := range l.children {
+		child.setRatelimitInternal(false, bucket, levels...)
+	}
+}
+
+func (l *logger) SetRatelimit(limit int64, levels ...Level) {
+	bucket := ratelimit.NewBucketWithRate(float64(limit), 1)
+	l.setRatelimitInternal(true, bucket, levels...)
+}
+
 // Cheap integer to fixed-width decimal ASCII.  Give a negative width to avoid zero-padding.
 func itoa(buf *[]byte, i int, wid int) {
 	// Assemble decimal in reverse order.
@@ -314,6 +358,10 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 
 	app := m.appenders[level]
 	if app == nil {
+		return
+	}
+
+	if limit := m.limits[level]; limit != nil && limit.TakeAvailable(1) == 0 {
 		return
 	}
 

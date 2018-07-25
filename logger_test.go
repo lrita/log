@@ -234,6 +234,37 @@ func TestLoggerInherit(t *testing.T) {
 	}
 }
 
+func TestSetRatelimit(t *testing.T) {
+	var (
+		a0     = &la{m: make(map[Level]int)}
+		a1     = &la{m: make(map[Level]int)}
+		assert = assert.New(t)
+	)
+
+	lg1 := New("lg1")
+	lg2 := lg1.New("lg2")
+	lg1.SetLevel(TRACE)
+	lg1.SetAppender(a0)
+	lg2.SetAppender(a1, ERROR, FATAL, INFO)
+	lg1.SetRatelimit(100)
+	lg2.SetRatelimit(100, ERROR, FATAL)
+	lg2.SetRatelimit(100, INFO)
+
+	ExitOnFatal = false
+	for _, l := range []Logger{lg1, lg2} {
+		for begin := time.Now(); time.Since(begin) < 1e9; {
+			l.Trace("trace message")
+			l.Debug("debug message")
+			l.Info("info message")
+			l.Warn("warn message")
+			l.Error("error message")
+			l.Fatal("fatal message")
+		}
+	}
+	assert.True(a1.m[INFO] < 110, "%d", a1.m[INFO])
+	assert.True(a1.m[ERROR]+a1.m[FATAL] < 110, "%d - %d", a1.m[ERROR], a1.m[FATAL])
+}
+
 type null struct{}
 
 func (n *null) Output(level Level, t time.Time, data []byte) {
