@@ -2,49 +2,137 @@ package log
 
 import (
 	"bytes"
-	"io/ioutil"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
+type dap struct {
+	l Level
+	d string
+}
+
+func (d *dap) Output(level Level, t time.Time, data []byte) {
+	d.l = level
+	d.d = string(data)
+}
+
 func TestGlobalLogger(t *testing.T) {
+	d := &dap{}
+	assert := assert.New(t)
+	check0 := func(l Level) {
+		assert.Equal(l, d.l, LevelsToString[l])
+		tokens := strings.Split(d.d, " ")
+		if assert.Equal(6, len(tokens)) {
+			assert.Equal("["+LevelsToString[l]+"]", tokens[2])
+			assert.Equal("1", tokens[3])
+			assert.Equal("2", tokens[4])
+			assert.Equal("3\n", tokens[5])
+		}
+	}
+	check1 := func(l Level) {
+		assert.Equal(l, d.l, LevelsToString[l])
+		tokens := strings.Split(d.d, " ")
+		if assert.Equal(7, len(tokens)) {
+			assert.Equal("logger_test.go", filepath.Base(tokens[1]))
+			assert.Equal("["+LevelsToString[l]+"]", tokens[3])
+			assert.Equal("1", tokens[4])
+			assert.Equal("2", tokens[5])
+			assert.Equal("3\n", tokens[6])
+		}
+	}
+	check2 := func(l Level) {
+		assert.Equal(l, d.l, LevelsToString[l])
+		tokens := strings.Split(d.d, " ")
+		if assert.Equal(7, len(tokens)) {
+			assert.Equal("logger_test.go", tokens[1])
+			assert.Equal("["+LevelsToString[l]+"]", tokens[3])
+			assert.Equal("1", tokens[4])
+			assert.Equal("2", tokens[5])
+			assert.Equal("3\n", tokens[6])
+		}
+	}
+	check3 := func(l Level) {
+		assert.Equal(l, d.l, LevelsToString[l])
+		tokens := strings.Split(d.d, " ")
+		if assert.Equal(8, len(tokens)) {
+			assert.Equal("logger_test.go", tokens[1])
+			assert.Equal("["+LevelsToString[l]+"]", tokens[3])
+			assert.Equal("[n]", tokens[4])
+			assert.Equal("1", tokens[5])
+			assert.Equal("2", tokens[6])
+			assert.Equal("3\n", tokens[7])
+		}
+	}
+
+	SetFormat("%F %T [%l] %m")
+	SetAppender(d)
+	defer SetAppender(NewConsoleAppender())
+
 	SetLevel(TRACE)
 	ExitOnFatal = false
 
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
+	Trace(1, " 2", " 3")
+	check0(TRACE)
+	Debug(1, " 2", " 3")
+	check0(DEBUG)
+	Warn(1, " 2", " 3")
+	check0(WARN)
+	Info(1, " 2", " 3")
+	check0(INFO)
+	Error(1, " 2", " 3")
+	check0(ERROR)
+	Fatal(1, " 2", " 3")
+	check0(FATAL)
 
-	SetFormat("%F %C %L {%l} %m")
+	SetFormat("%F %C %L [%l] %m")
 
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
+	Trace(1, " 2", " 3")
+	check1(TRACE)
+	Debug(1, " 2", " 3")
+	check1(DEBUG)
+	Warn(1, " 2", " 3")
+	check1(WARN)
+	Info(1, " 2", " 3")
+	check1(INFO)
+	Error(1, " 2", " 3")
+	check1(ERROR)
+	Fatal(1, " 2", " 3")
+	check1(FATAL)
 
-	SetFormat("%F %c %L {%l} %m")
+	SetFormat("%F %c %L [%l] %m")
 
-	Trace(1, " 2", "3")
-	Debug(1, " 2", "3")
-	Warn(1, " 2", "3")
-	Info(1, " 2", "3")
-	Error(1, " 2", "3")
-	Fatal(1, " 2", "3")
+	Trace(1, " 2", " 3")
+	check2(TRACE)
+	Debug(1, " 2", " 3")
+	check2(DEBUG)
+	Warn(1, " 2", " 3")
+	check2(WARN)
+	Info(1, " 2", " 3")
+	check2(INFO)
+	Error(1, " 2", " 3")
+	check2(ERROR)
+	Fatal(1, " 2", " 3")
+	check2(FATAL)
 
 	lg := New("n")
-	lg.SetFormat("%F %c %L {%l} [new logger n] %m")
+	lg.SetFormat("%F %c %L [%l] [n] %m")
 
-	lg.Trace(1, " 2", "3")
-	lg.Debug(1, " 2", "3")
-	lg.Warn(1, " 2", "3")
-	lg.Info(1, " 2", "3")
-	lg.Error(1, " 2", "3")
-	lg.Fatal(1, " 2", "3")
+	lg.Trace(1, " 2", " 3")
+	check3(TRACE)
+	lg.Debug(1, " 2", " 3")
+	check3(DEBUG)
+	lg.Warn(1, " 2", " 3")
+	check3(WARN)
+	lg.Info(1, " 2", " 3")
+	check3(INFO)
+	lg.Error(1, " 2", " 3")
+	check3(ERROR)
+	lg.Fatal(1, " 2", " 3")
+	check3(FATAL)
 }
 
 type la struct {
@@ -113,7 +201,9 @@ func (c *ha) Output(level Level, t time.Time, data []byte) {
 			panic("format is not equal")
 		}
 	} else {
-		c.data[level] = data
+		dd := make([]byte, len(data))
+		copy(dd, data)
+		c.data[level] = dd
 	}
 }
 
@@ -147,7 +237,6 @@ func TestLoggerInherit(t *testing.T) {
 type null struct{}
 
 func (n *null) Output(level Level, t time.Time, data []byte) {
-	ioutil.Discard.Write(data)
 }
 
 func BenchmarkLogger(b *testing.B) {

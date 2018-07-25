@@ -67,46 +67,44 @@ type logger struct {
 	l        sync.Mutex
 	name     string
 	meta     unsafe.Pointer
-	children []Logger
+	children []*logger
 }
 
+const (
+	detachlvl = 1 << iota
+	detachapp
+	detachfmt
+)
+
 type meta struct {
-	detach    bool
+	detach    uint8
 	level     Level
 	calldepth int
 	appenders map[Level]Appender
 	formats   map[Level]string
-	parent    *logger
 }
 
-func (m *meta) appender(level Level) Appender {
-	app := m.appenders[level]
-	if app == nil && m.parent != nil {
-		app = m.parent.appender(level)
+func (m *meta) clone() *meta {
+	mm := &meta{
+		detach:    m.detach,
+		level:     m.level,
+		calldepth: m.calldepth,
+		appenders: make(map[Level]Appender),
+		formats:   make(map[Level]string),
 	}
-	return app
-}
-
-func (m *meta) format(level Level) string {
-	f := m.formats[level]
-	if f == "" && m.parent != nil {
-		f = m.parent.format(level)
+	for level, app := range m.appenders {
+		mm.appenders[level] = app
 	}
-	return f
-}
-
-func (m *meta) Level() Level {
-	if m.detach {
-		return m.level
+	for level, fmt := range m.formats {
+		mm.formats[level] = fmt
 	}
-	return m.parent.Level()
+	return mm
 }
 
 var (
 	log = &logger{
 		name: "",
 		meta: unsafe.Pointer(&meta{
-			detach:    true,
 			level:     DEBUG,
 			calldepth: 1,
 			appenders: make(map[Level]Appender),
@@ -129,26 +127,20 @@ func init() {
 
 func (l *logger) New(name string) Logger {
 	l.l.Lock()
-	lg := &logger{
+	m := (*meta)(atomic.LoadPointer(&l.meta)).clone()
+	m.detach = 0
+	m.calldepth = 0
+	child := &logger{
 		name: name,
-		meta: unsafe.Pointer(&meta{
-			calldepth: 0,
-			appenders: make(map[Level]Appender),
-			formats:   make(map[Level]string),
-			parent:    l,
-		}),
+		meta: unsafe.Pointer(m),
 	}
-	l.children = append(l.children, lg)
+	l.children = append(l.children, child)
 	l.l.Unlock()
-	return lg
+	return child
 }
 
 func (l *logger) Level() Level {
-	m := (*meta)(atomic.LoadPointer(&l.meta))
-	if m.detach {
-		return m.level
-	}
-	return m.parent.Level()
+	return (*meta)(atomic.LoadPointer(&l.meta)).level
 }
 
 func (l *logger) SetCallDepth(d int) {
@@ -163,18 +155,35 @@ func (l *logger) IsDebugEnabled() bool {
 	return l.Level() >= DEBUG
 }
 
-func (l *logger) SetLevel(level Level) {
+func (l *logger) setLevelInternal(detach bool, level Level) {
 	l.l.Lock()
+	defer l.l.Unlock()
 	m := *(*meta)(atomic.LoadPointer(&l.meta))
-	m.detach = true
+	if detach {
+		m.detach |= detachlvl
+	} else if m.detach&detachlvl != 0 {
+		return
+	}
 	m.level = level
 	atomic.StorePointer(&l.meta, unsafe.Pointer(&m))
-	l.l.Unlock()
+	for _, child := range l.children {
+		child.setLevelInternal(false, level)
+	}
 }
 
-func (l *logger) SetAppender(appender Appender, levels ...Level) {
+func (l *logger) SetLevel(level Level) {
+	l.setLevelInternal(true, level)
+}
+
+func (l *logger) setAppenderInternal(detach bool, appender Appender, levels ...Level) {
 	l.l.Lock()
+	defer l.l.Unlock()
 	m := *(*meta)(atomic.LoadPointer(&l.meta))
+	if detach {
+		m.detach |= detachapp
+	} else if m.detach&detachapp != 0 {
+		return
+	}
 	m.appenders = make(map[Level]Appender, len(LevelsToString))
 	if len(levels) == 0 {
 		for level := range LevelsToString {
@@ -190,12 +199,24 @@ func (l *logger) SetAppender(appender Appender, levels ...Level) {
 		}
 	}
 	atomic.StorePointer(&l.meta, unsafe.Pointer(&m))
-	l.l.Unlock()
+	for _, child := range l.children {
+		child.setAppenderInternal(false, appender, levels...)
+	}
 }
 
-func (l *logger) SetFormat(fmt string, levels ...Level) {
+func (l *logger) SetAppender(appender Appender, levels ...Level) {
+	l.setAppenderInternal(true, appender, levels...)
+}
+
+func (l *logger) setFormatInternal(detach bool, fmt string, levels ...Level) {
 	l.l.Lock()
+	defer l.l.Unlock()
 	m := *(*meta)(atomic.LoadPointer(&l.meta))
+	if detach {
+		m.detach |= detachfmt
+	} else if m.detach&detachfmt != 0 {
+		return
+	}
 	m.formats = make(map[Level]string, len(LevelsToString))
 	if len(levels) == 0 {
 		for level := range LevelsToString {
@@ -211,7 +232,13 @@ func (l *logger) SetFormat(fmt string, levels ...Level) {
 		}
 	}
 	atomic.StorePointer(&l.meta, unsafe.Pointer(&m))
-	l.l.Unlock()
+	for _, child := range l.children {
+		child.setFormatInternal(false, fmt, levels...)
+	}
+}
+
+func (l *logger) SetFormat(fmt string, levels ...Level) {
+	l.setFormatInternal(true, fmt, levels...)
 }
 
 // Cheap integer to fixed-width decimal ASCII.  Give a negative width to avoid zero-padding.
@@ -281,11 +308,11 @@ func (l *logger) Tracef(fmt string, v ...interface{}) {
 
 func (l *logger) Log(level Level, f string, v ...interface{}) {
 	m := (*meta)(atomic.LoadPointer(&l.meta))
-	if level > m.Level() {
+	if level > m.level {
 		return
 	}
 
-	app := m.appender(level)
+	app := m.appenders[level]
 	if app == nil {
 		return
 	}
@@ -295,7 +322,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		line   int
 		caller string
 		b      = pool.Get().(*[]byte)
-		format = m.format(level)
+		format = m.formats[level]
 		tm     = time.Now()
 		n      = len(format)
 	)
@@ -382,12 +409,4 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 	if level == FATAL && ExitOnFatal {
 		os.Exit(-1)
 	}
-}
-
-func (l *logger) appender(level Level) Appender {
-	return (*meta)(atomic.LoadPointer(&l.meta)).appender(level)
-}
-
-func (l *logger) format(level Level) string {
-	return (*meta)(atomic.LoadPointer(&l.meta)).format(level)
 }
