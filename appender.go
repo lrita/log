@@ -22,6 +22,10 @@ type Appender interface {
 	Output(level Level, t time.Time, data []byte)
 }
 
+type Flusher interface {
+	Flush() error
+}
+
 type console struct {
 	io.Writer
 	mu sync.Mutex

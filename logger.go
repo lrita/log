@@ -407,6 +407,9 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 	pool.Put(b)
 
 	if level == FATAL && ExitOnFatal {
+		if flusher, ok := app.(Flusher); ok {
+			flusher.Flush()
+		}
 		os.Exit(-1)
 	}
 }
