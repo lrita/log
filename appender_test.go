@@ -37,7 +37,9 @@ func TestHourlyRotateBufAppender(t *testing.T) {
 	}()
 
 	app.Output(DEBUG, time.Now(), []byte("1111\n"))
-
+	if err := app.Flush(); err != nil {
+		t.Errorf("appender flush error: %v", err)
+	}
 	if err := app.close(); err != nil {
 		t.Fatalf("appender close error: %v", err)
 	}

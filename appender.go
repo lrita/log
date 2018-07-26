@@ -1,7 +1,6 @@
 package log
 
 import (
-	"bufio"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,6 +23,10 @@ type Appender interface {
 
 type Flusher interface {
 	Flush() error
+}
+
+type Reseter interface {
+	Reset(w io.Writer)
 }
 
 type console struct {
@@ -101,7 +104,8 @@ func (a *RotateAppender) open(bufsize int) (*RotateAppender, error) {
 	a.file, err = os.OpenFile(a.filename,
 		os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if bufsize > 0 {
-		a.w = bufio.NewWriterSize(a.file, bufsize)
+		// a.w = bufio.NewWriterSize(a.file, bufsize)
+		a.w = NewAIO(a.file, bufsize)
 	} else {
 		a.w = a.file
 	}
@@ -117,9 +121,9 @@ func (a *RotateAppender) Close() error {
 
 func (a *RotateAppender) close() error {
 	var e1, e2 error
-	if bw, ok := a.w.(*bufio.Writer); ok {
+	if bw, ok := a.w.(Flusher); ok {
 		if e1 = bw.Flush(); e1 != nil {
-			println("appender close bufio flush error: ", e1.Error())
+			println("appender close flush error: ", e1.Error())
 		}
 	}
 
@@ -142,7 +146,7 @@ func (a *RotateAppender) close() error {
 }
 
 func (a *RotateAppender) reset(file *os.File) {
-	if bw, ok := a.w.(*bufio.Writer); ok {
+	if bw, ok := a.w.(Reseter); ok {
 		bw.Reset(file)
 	} else {
 		a.w = file
@@ -180,7 +184,7 @@ func (a *RotateAppender) Output(_ Level, t time.Time, data []byte) {
 func (a *RotateAppender) Flush() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if bw, ok := a.w.(*bufio.Writer); ok {
+	if bw, ok := a.w.(Flusher); ok {
 		return bw.Flush()
 	}
 	return nil
