@@ -106,6 +106,16 @@ func (a *AIO) Flush() error {
 	return a.haserror()
 }
 
+func (a *AIO) flush() {
+	aio := &aio{
+		w: a.w,
+		b: a.buf[:a.n],
+	}
+	a.buf = a.free()
+	a.n = 0
+	a.ch <- aio
+}
+
 // Available returns how many bytes are unused in the buffer.
 func (a *AIO) Available() int { return len(a.buf) - a.n }
 
@@ -120,7 +130,7 @@ func (a *AIO) Write(p []byte) (nn int, err error) {
 	for len(p) > a.Available() && a.haserror() == nil {
 		n := copy(a.buf[a.n:], p)
 		a.n += n
-		a.Flush()
+		a.flush()
 		nn += n
 		p = p[n:]
 	}

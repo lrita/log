@@ -51,6 +51,9 @@ func TestAIGeneric(t *testing.T) {
 	assert.Equal(6, n)
 	assert.Equal(nil, err)
 	assert.Equal(128-6, aio.Available())
+	n, err = aio.Write(bytes.Repeat([]byte("abcd"), 128))
+	assert.Equal(128*4, n)
+	assert.Equal(nil, err)
 
 	aio.Reset(&faultbuf{})
 	assert.Equal(128, aio.Available())
