@@ -10,6 +10,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/lrita/cache"
 	"github.com/lrita/ratelimit"
 )
 
@@ -121,11 +122,9 @@ var (
 			formats:   make(map[Level]string),
 		}),
 	}
-	pool = sync.Pool{
-		New: func() interface{} {
-			b := make([]byte, 256)
-			return &b
-		},
+	pool = cache.BufCache{
+		New:  func() []byte { return make([]byte, 256) },
+		Size: 256,
 	}
 )
 
@@ -286,7 +285,7 @@ func (l *logger) SetRatelimit(limit int64, levels ...Level) {
 }
 
 // Cheap integer to fixed-width decimal ASCII.  Give a negative width to avoid zero-padding.
-func itoa(buf *[]byte, i int, wid int) {
+func itoa(buf []byte, i int, wid int) []byte {
 	// Assemble decimal in reverse order.
 	var b [20]byte
 	bp := len(b) - 1
@@ -299,7 +298,7 @@ func itoa(buf *[]byte, i int, wid int) {
 	}
 	// i < 10
 	b[bp] = byte('0' + i)
-	*buf = append(*buf, b[bp:]...)
+	return append(buf, b[bp:]...)
 }
 
 func (l *logger) Fatal(v ...interface{}) {
@@ -369,13 +368,11 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		ok     bool
 		line   int
 		caller string
-		b      = pool.Get().(*[]byte)
+		b      = pool.Get()[:0]
 		format = m.formats[level]
 		tm     = time.Now()
 		n      = len(format)
 	)
-
-	*b = (*b)[:0]
 
 	for i := 0; i < n; i++ {
 		lasti := i
@@ -383,7 +380,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 			i++
 		}
 		if i > lasti {
-			*b = append(*b, format[lasti:i]...)
+			b = append(b, format[lasti:i]...)
 		}
 		if i >= n { // done processing format string
 			break
@@ -394,12 +391,12 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		switch format[i] {
 		case 'm':
 			if f != "" {
-				*b = append(*b, fmt.Sprintf(f, v...)...)
+				fmt.Fprintf((*bufw)(noescape(unsafe.Pointer(&b))), f, v...)
 			} else {
-				*b = append(*b, fmt.Sprint(v...)...)
+				fmt.Fprint((*bufw)(noescape(unsafe.Pointer(&b))), v...)
 			}
 		case 'l':
-			*b = append(*b, LevelsToString[level]...)
+			b = append(b, LevelsToString[level]...)
 		case 'C':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(m.calldepth + 2)
@@ -407,7 +404,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			*b = append(*b, caller...)
+			b = append(b, caller...)
 		case 'c':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(m.calldepth + 2)
@@ -415,7 +412,7 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			*b = append(*b, filepath.Base(caller)...)
+			b = append(b, filepath.Base(caller)...)
 		case 'L':
 			if caller == "" {
 				_, caller, line, ok = runtime.Caller(m.calldepth + 2)
@@ -423,35 +420,35 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 					caller = "???"
 				}
 			}
-			itoa(b, line, -1)
+			b = itoa(b, line, -1)
 		case '%':
-			*b = append(*b, '%')
+			b = append(b, '%')
 		case 'n':
-			*b = append(*b, '\n')
+			b = append(b, '\n')
 		case 'F':
-			*b = tm.AppendFormat(*b, "2006-01-02")
+			b = tm.AppendFormat(b, "2006-01-02")
 		case 'D':
-			*b = tm.AppendFormat(*b, "01/02/06")
+			b = tm.AppendFormat(b, "01/02/06")
 		case 'd':
-			*b = tm.AppendFormat(*b, time.RFC3339)
+			b = tm.AppendFormat(b, time.RFC3339)
 		case 'T':
-			*b = tm.AppendFormat(*b, "15:04:05")
+			b = tm.AppendFormat(b, "15:04:05")
 		case 'a':
-			*b = tm.AppendFormat(*b, "Mon")
+			b = tm.AppendFormat(b, "Mon")
 		case 'A':
-			*b = tm.AppendFormat(*b, "Monday")
+			b = tm.AppendFormat(b, "Monday")
 		case 'b':
-			*b = tm.AppendFormat(*b, "Jan")
+			b = tm.AppendFormat(b, "Jan")
 		case 'B':
-			*b = tm.AppendFormat(*b, "January")
+			b = tm.AppendFormat(b, "January")
 		}
 	}
 
-	if len(*b) == 0 || (*b)[len(*b)-1] != '\n' {
-		*b = append(*b, '\n')
+	if ll := len(b); ll == 0 || b[ll-1] != '\n' {
+		b = append(b, '\n')
 	}
 
-	app.Output(level, tm, *b)
+	app.Output(level, tm, b)
 	pool.Put(b)
 
 	if level == FATAL && ExitOnFatal {
@@ -460,4 +457,23 @@ func (l *logger) Log(level Level, f string, v ...interface{}) {
 		}
 		os.Exit(-1)
 	}
+}
+
+type bufw []byte
+
+func (w *bufw) Write(d []byte) (int, error) {
+	*w = append(*w, d...)
+	return len(d), nil
+}
+
+// noescape hides a pointer from escape analysis.  noescape is
+// the identity function but escape analysis doesn't think the
+// output depends on the input. noescape is inlined and currently
+// compiles down to zero instructions.
+// USE CAREFULLY!
+// This was copied from the runtime; see issues 23382 and 7921.
+//go:nosplit
+func noescape(p unsafe.Pointer) unsafe.Pointer {
+	x := uintptr(p)
+	return unsafe.Pointer(x ^ 0)
 }
