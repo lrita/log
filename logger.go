@@ -302,54 +302,54 @@ func itoa(buf []byte, i int, wid int) []byte {
 }
 
 func (l *logger) Fatal(v ...interface{}) {
-	l.Log(FATAL, "", v...)
+	l.dolog("", FATAL, v...)
 }
 
 func (l *logger) Error(v ...interface{}) {
-	l.Log(ERROR, "", v...)
+	l.dolog("", ERROR, v...)
 }
 
 func (l *logger) Info(v ...interface{}) {
-	l.Log(INFO, "", v...)
+	l.dolog("", INFO, v...)
 }
 
 func (l *logger) Warn(v ...interface{}) {
-	l.Log(WARN, "", v...)
+	l.dolog("", WARN, v...)
 }
 
 func (l *logger) Debug(v ...interface{}) {
-	l.Log(DEBUG, "", v...)
+	l.dolog("", DEBUG, v...)
 }
 
 func (l *logger) Trace(v ...interface{}) {
-	l.Log(TRACE, "", v...)
+	l.dolog("", TRACE, v...)
 }
 
 func (l *logger) Fatalf(fmt string, v ...interface{}) {
-	l.Log(FATAL, fmt, v...)
+	l.dolog(fmt, FATAL, v...)
 }
 
 func (l *logger) Errorf(fmt string, v ...interface{}) {
-	l.Log(ERROR, fmt, v...)
+	l.dolog(fmt, ERROR, v...)
 }
 
 func (l *logger) Infof(fmt string, v ...interface{}) {
-	l.Log(INFO, fmt, v...)
+	l.dolog(fmt, INFO, v...)
 }
 
 func (l *logger) Warnf(fmt string, v ...interface{}) {
-	l.Log(WARN, fmt, v...)
+	l.dolog(fmt, WARN, v...)
 }
 
 func (l *logger) Debugf(fmt string, v ...interface{}) {
-	l.Log(DEBUG, fmt, v...)
+	l.dolog(fmt, DEBUG, v...)
 }
 
 func (l *logger) Tracef(fmt string, v ...interface{}) {
-	l.Log(TRACE, fmt, v...)
+	l.dolog(fmt, TRACE, v...)
 }
 
-func (l *logger) Log(level Level, f string, v ...interface{}) {
+func (l *logger) dolog(f string, level Level, v ...interface{}) {
 	m := (*meta)(atomic.LoadPointer(&l.meta))
 	if level > m.level {
 		return
