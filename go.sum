@@ -8,10 +8,10 @@ github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORN
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/lrita/cache v1.0.1 h1:wQL11apREodnSk20ELQc/RqvjiATGIPVQv4lV4qSy4s=
-github.com/lrita/cache v1.0.1/go.mod h1:Ur8dJD9p3T0TblaOUJZ2g02Yp3LegM0yTg+ceH6KrYQ=
-github.com/lrita/numa v1.0.2 h1:RzJFNvgHXtzyf+RsGRP9XyMHjNUQFOEypv+2oXaJBj8=
-github.com/lrita/numa v1.0.2/go.mod h1:B0HvTeFKP4P+yb/BvVhww9Sx+q/zZEwTfzPL0LhF79M=
+github.com/lrita/cache v1.0.2 h1:GG4mR+4tvhC29hGh36/dMfBbMqU68t2K+VG4d8OzIco=
+github.com/lrita/cache v1.0.2/go.mod h1:MBL6HQOBcXPfKrvLo5c2LzdPe2SMf6orYAgABRmEfzs=
+github.com/lrita/numa v1.0.3 h1:9vx+77J1GSYdphcABftzenMTqzYLygLJa5EzZN1wa9w=
+github.com/lrita/numa v1.0.3/go.mod h1:B0HvTeFKP4P+yb/BvVhww9Sx+q/zZEwTfzPL0LhF79M=
 github.com/lrita/ratelimit v0.0.0-20190723030019-81504bd89bc5 h1:WU/pqL096RwsAAsY8fiLidHzJxMM2QYcrzmWjmsoaVY=
 github.com/lrita/ratelimit v0.0.0-20190723030019-81504bd89bc5/go.mod h1:anSj2TgmjQzduw61ibtoT9nSaQ57h3zbtJnuv5+46DU=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
